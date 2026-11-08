@@ -4,6 +4,7 @@ import { ipcMain } from "electron";
 import Store from "electron-store";
 
 import { destroyDiscordRpc, initDiscordRpc } from "./discordRpc";
+import { onPushToTalkConfigChanged } from "./pushToTalk";
 import { mainWindow } from "./window";
 
 const schema = {
@@ -28,6 +29,24 @@ const schema = {
   discordRpc: {
     type: "boolean",
   } as JSONSchema.Boolean,
+  serverUrl: {
+    type: "string",
+  } as JSONSchema.String,
+  pushToTalk: {
+    type: "boolean",
+  } as JSONSchema.Boolean,
+  pushToTalkKeybind: {
+    type: "string",
+  } as JSONSchema.String,
+  pushToTalkMode: {
+    type: "string",
+    enum: ["hold", "toggle"],
+  } as JSONSchema.String,
+  pushToTalkReleaseDelay: {
+    type: "number",
+    minimum: 0,
+    maximum: 5000,
+  } as JSONSchema.Number,
   windowState: {
     type: "object",
     properties: {
@@ -60,6 +79,11 @@ const store = new Store({
     spellchecker: true,
     hardwareAcceleration: true,
     discordRpc: true,
+    serverUrl: "",
+    pushToTalk: false,
+    pushToTalkKeybind: "F8",
+    pushToTalkMode: "hold",
+    pushToTalkReleaseDelay: 0,
     windowState: {
       x: 0,
       y: 0,
@@ -83,6 +107,10 @@ class Config {
       spellchecker: this.spellchecker,
       hardwareAcceleration: this.hardwareAcceleration,
       discordRpc: this.discordRpc,
+      pushToTalk: this.pushToTalk,
+      pushToTalkKeybind: this.pushToTalkKeybind,
+      pushToTalkMode: this.pushToTalkMode,
+      pushToTalkReleaseDelay: this.pushToTalkReleaseDelay,
       windowState: this.windowState,
     });
   }
@@ -192,6 +220,85 @@ class Config {
     this.sync();
   }
 
+  get serverUrl() {
+    return (store as never as { get(k: string): string }).get("serverUrl");
+  }
+
+  set serverUrl(value: string) {
+    (store as never as { set(k: string, value: string): void }).set(
+      "serverUrl",
+      typeof value === "string" ? value : "",
+    );
+  }
+
+  get pushToTalk() {
+    return (store as never as { get(k: string): boolean }).get("pushToTalk");
+  }
+
+  set pushToTalk(value: boolean) {
+    (store as never as { set(k: string, value: boolean): void }).set(
+      "pushToTalk",
+      !!value,
+    );
+
+    onPushToTalkConfigChanged();
+    this.sync();
+  }
+
+  get pushToTalkKeybind() {
+    return (store as never as { get(k: string): string }).get(
+      "pushToTalkKeybind",
+    );
+  }
+
+  set pushToTalkKeybind(value: string) {
+    if (typeof value !== "string" || !value) return;
+
+    (store as never as { set(k: string, value: string): void }).set(
+      "pushToTalkKeybind",
+      value,
+    );
+
+    onPushToTalkConfigChanged();
+    this.sync();
+  }
+
+  get pushToTalkMode() {
+    return (store as never as { get(k: string): "hold" | "toggle" }).get(
+      "pushToTalkMode",
+    );
+  }
+
+  set pushToTalkMode(value: "hold" | "toggle") {
+    if (value !== "hold" && value !== "toggle") return;
+
+    (store as never as { set(k: string, value: string): void }).set(
+      "pushToTalkMode",
+      value,
+    );
+
+    onPushToTalkConfigChanged();
+    this.sync();
+  }
+
+  get pushToTalkReleaseDelay() {
+    return (store as never as { get(k: string): number }).get(
+      "pushToTalkReleaseDelay",
+    );
+  }
+
+  set pushToTalkReleaseDelay(value: number) {
+    const delay = Math.min(5000, Math.max(0, Math.round(Number(value) || 0)));
+
+    (store as never as { set(k: string, value: number): void }).set(
+      "pushToTalkReleaseDelay",
+      delay,
+    );
+
+    onPushToTalkConfigChanged();
+    this.sync();
+  }
+
   get windowState() {
     return (
       store as never as { get(k: string): DesktopConfig["windowState"] }
@@ -213,7 +320,9 @@ export const config = new Config();
 
 ipcMain.on("config", (_, newConfig: Partial<DesktopConfig>) => {
   console.info("Received new configuration", newConfig);
-  Object.entries(newConfig).forEach(
-    ([key, value]) => (config[key as keyof DesktopConfig] = value as never),
-  );
+  Object.entries(newConfig).forEach(([key, value]) => {
+    // changed only through the server picker
+    if (key === "serverUrl") return;
+    config[key as keyof DesktopConfig] = value as never;
+  });
 });

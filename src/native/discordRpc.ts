@@ -1,6 +1,7 @@
 import { Client } from "discord-rpc";
 
 import { config } from "./config";
+import { getServerUrl } from "./server";
 
 // internal state
 let rpc: Client;
@@ -14,16 +15,18 @@ export async function initDiscordRpc() {
   try {
     rpc = new Client({ transport: "ipc" });
 
+    const server = getServerUrl() ?? new URL("https://stoat.chat/");
+
     rpc.on("ready", () =>
       rpc.setActivity({
-        state: "stoat.chat",
+        state: server.host,
         details: "Chatting with others",
         largeImageKey: "qr",
         largeImageText: "Join Stoat!",
         buttons: [
           {
             label: "Join Stoat",
-            url: "https://stoat.chat/",
+            url: server.origin + "/",
           },
         ],
       }),

@@ -1,0 +1,96 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: linux, arch: x64, runner: ubuntu-24.04 }
+          - { platform: linux, arch: arm64, runner: ubuntu-24.04-arm }
+          - { platform: win32, arch: x64, runner: windows-latest }
+          - { platform: win32, arch: arm64, runner: windows-11-arm }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout assets
+        shell: bash
+        run: git -c submodule."assets".update=checkout submodule update --init assets
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpipewire-0.3-dev build-essential
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build zip
+        run: pnpm exec electron-forge make --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --targets @electron-forge/maker-zip
+
+      - name: Rename zip
+        id: zip
+        shell: bash
+        run: |
+          src=$(find out/make/zip -name '*.zip' | head -n 1)
+          os=${{ matrix.platform == 'win32' && 'windows' || 'linux' }}
+          arch=${{ matrix.arch == 'x64' && 'x86_64' || 'arm64' }}
+          version=$(node -p "require('./package.json').version")
+          name="Stoat-${version}-${os}-${arch}.zip"
+          mv "$src" "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.zip.outputs.name }}
+          path: ${{ steps.zip.outputs.name }}
+          if-no-files-found: error
+
+  release:
+    name: Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/*.zip \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Stoat ${GITHUB_REF_NAME}" \
+            --generate-notes

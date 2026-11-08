@@ -1,8 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { IUpdateInfo, updateElectronApp } from "update-electron-app";
 
-import { BrowserWindow, Notification, app, shell } from "electron";
+import { BrowserWindow, app, shell } from "electron";
 import started from "electron-squirrel-startup";
 
 import { initAutoLaunch } from "./native/autoLaunch";
@@ -14,9 +13,11 @@ import {
   registerProtocol,
 } from "./native/deepLink";
 import { initDiscordRpc } from "./native/discordRpc";
+import { destroyPushToTalk, initPushToTalk } from "./native/pushToTalk";
+import { getServerUrl } from "./native/server";
 import { initTray } from "./native/tray";
 import { destroyVirtualMic, initVirtualMic } from "./native/virtualMic";
-import { BUILD_URL, createMainWindow, mainWindow } from "./native/window";
+import { createMainWindow, mainWindow } from "./native/window";
 
 // In Flatpak, we have to update the temp dir to a shared directory across host and sandbox;
 // otherwise, the icon will not show up in the tray when using app indicators.
@@ -48,19 +49,8 @@ if (!config.hardwareAcceleration) {
 // ensure only one copy of the application can run
 const acquiredLock = app.requestSingleInstanceLock();
 
-const onNotifyUser = (_info: IUpdateInfo) => {
-  const notification = new Notification({
-    title: "Update Available",
-    body: "Restart the app to install the update.",
-    silent: true,
-  });
-
-  notification.show();
-};
-
 if (acquiredLock) {
-  // start auto update logic
-  updateElectronApp({ onNotifyUser });
+  // auto-update is disabled: upstream's releases would replace this build
 
   // facilitate stoat:// links
   registerProtocol();
@@ -92,6 +82,7 @@ if (acquiredLock) {
 
     initTray();
     initDiscordRpc();
+    initPushToTalk();
     initVirtualMic();
     initAutoLaunch();
 
@@ -142,9 +133,10 @@ if (acquiredLock) {
 
   // ensure URLs launch in external context
   app.on("web-contents-created", (_, contents) => {
-    // prevent navigation out of build URL origin
+    // prevent navigation out of the server's origin
     contents.on("will-navigate", (event, navigationUrl) => {
-      if (new URL(navigationUrl).origin !== BUILD_URL.origin) {
+      const server = getServerUrl();
+      if (!server || new URL(navigationUrl).origin !== server.origin) {
         event.preventDefault();
       }
     });
@@ -169,6 +161,7 @@ if (acquiredLock) {
   app.on("will-quit", (e) => {
     if (readyToQuit) return;
     e.preventDefault();
+    destroyPushToTalk();
     destroyVirtualMic().finally(() => {
       readyToQuit = true;
       app.quit();

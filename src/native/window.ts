@@ -14,18 +14,12 @@ import {
 import windowIconAsset from "../../assets/desktop/icon.png?asset";
 
 import { config } from "./config";
+import { initServerSelection, loadApp } from "./server";
 import { updateTrayMenu } from "./tray";
 import { startVirtualMic } from "./virtualMic";
 
 // global reference to main window
 export let mainWindow: BrowserWindow;
-
-// currently in-use build
-export const BUILD_URL = new URL(
-  app.commandLine.hasSwitch("force-server")
-    ? app.commandLine.getSwitchValue("force-server")
-    : /*MAIN_WINDOW_VITE_DEV_SERVER_URL ??*/ "https://stoat.chat/app",
-);
 
 // internal window state
 let shouldQuit = false;
@@ -89,10 +83,9 @@ export function createMainWindow() {
     mainWindow.maximize();
   }
 
-  // load the entrypoint
-  mainWindow
-    .loadURL(BUILD_URL.toString())
-    .then(() => mainWindow.webContents.reload());
+  // load the chosen server (or ask which one to use)
+  initServerSelection(mainWindow);
+  loadApp(mainWindow);
 
   // minimise window to tray
   mainWindow.on("close", (event) => {
