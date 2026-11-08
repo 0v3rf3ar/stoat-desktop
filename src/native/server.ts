@@ -7,9 +7,6 @@ import { mainWindow } from "./window";
 /** Official hosted instance */
 export const OFFICIAL_SERVER = "https://stoat.chat/app";
 
-/** Pre-filled address for the self-hosted option */
-export const DEFAULT_SELF_HOSTED_SERVER = "https://stoat.iran-shop.top/";
-
 const forcedServer = app.commandLine.hasSwitch("force-server")
   ? app.commandLine.getSwitchValue("force-server")
   : undefined;
@@ -51,7 +48,6 @@ function isPickerFrame(frame: Electron.WebFrameMain | null) {
 export function showServerPicker(window: BrowserWindow, error?: string) {
   const html = serverPickerHtml({
     official: OFFICIAL_SERVER,
-    defaultSelfHosted: DEFAULT_SELF_HOSTED_SERVER,
     current: getServerUrl()?.toString(),
     error,
     canCancel: !!getServerUrl() && !error,

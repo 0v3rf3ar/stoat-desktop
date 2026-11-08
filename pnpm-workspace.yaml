@@ -14,3 +14,7 @@ blockExoticSubdeps: false # required to make discord-rpc work
 # Override for node 26 bug
 overrides:
   yauzl: ^3.3.1
+
+# Node 26 removed fs.rmdir({ recursive }) used by cross-zip on Windows
+patchedDependencies:
+  cross-zip@4.0.1: patches/cross-zip@4.0.1.patch

@@ -37,6 +37,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libpipewire-0.3-dev build-essential
 
+      # lets node-gyp use the compiler directly instead of searching for Visual Studio
+      - name: Set up MSVC
+        if: matrix.platform == 'win32'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch == 'arm64' && 'arm64' || 'x64' }}
+
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:

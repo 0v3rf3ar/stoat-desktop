@@ -4,7 +4,6 @@
  */
 export function serverPickerHtml(options: {
   official: string;
-  defaultSelfHosted: string;
   current?: string;
   error?: string;
   canCancel: boolean;
@@ -125,9 +124,9 @@ export function serverPickerHtml(options: {
 
   $("official-desc").textContent = new URL(opts.official).host + " — the official instance";
 
-  const isOfficial = opts.current && new URL(opts.current).origin === new URL(opts.official).origin;
-  url.value = opts.current && !isOfficial ? opts.current : opts.defaultSelfHosted;
-  (isOfficial ? official : custom).checked = true;
+  const isCustom = !!opts.current && new URL(opts.current).origin !== new URL(opts.official).origin;
+  url.value = isCustom ? opts.current : "";
+  (isCustom ? custom : official).checked = true;
   if (opts.error) error.textContent = opts.error;
   if (opts.canCancel) cancel.hidden = false;
 
